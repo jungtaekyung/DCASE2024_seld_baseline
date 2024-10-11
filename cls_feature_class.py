@@ -18,9 +18,9 @@ import wave
 import contextlib
 import cv2
 
-
-
-def nCr(n, r):
+# 진짜 바뀜?
+# 이거 바뀜? 
+def nCr(n, r): # combination 계산
     return math.factorial(n) // math.factorial(r) // math.factorial(n-r)
 
 
@@ -35,12 +35,12 @@ class FeatureClass:
         # Input directories
         self._feat_label_dir = params['feat_label_dir']
         self._dataset_dir = params['dataset_dir']
-        self._dataset_combination = '{}_{}'.format(params['dataset'], 'eval' if is_eval else 'dev')
-        self._aud_dir = os.path.join(self._dataset_dir, self._dataset_combination)
+        self._dataset_combination = '{}_{}'.format(params['dataset'], 'eval' if is_eval else 'dev') # is_eval = True - eval, False- dev
+        self._aud_dir = os.path.join(self._dataset_dir, self._dataset_combination) 
 
         self._desc_dir = None if is_eval else os.path.join(self._dataset_dir, 'metadata_dev')
 
-        self._vid_dir = os.path.join(self._dataset_dir, 'video_{}'.format('eval' if is_eval else 'dev'))
+        self._vid_dir = os.path.join(self._dataset_dir, 'video_{}'.format('eval' if is_eval else 'dev'))# is_eval = True - eval, False- dev
         # Output directories
         self._label_dir = None
         self._feat_dir = None

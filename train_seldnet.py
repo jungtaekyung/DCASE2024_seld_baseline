@@ -14,20 +14,22 @@ from time import gmtime, strftime
 import torch
 import torch.nn as nn
 import torch.optim as optim
-plot.switch_backend('agg')
+plot.switch_backend('agg')     # matplotlib 
 from IPython import embed
 from cls_compute_seld_results import ComputeSELDResults, reshape_3Dto2D
 from SELD_evaluation_metrics import distance_between_cartesian_coordinates
-import seldnet_model 
-
-def get_accdoa_labels(accdoa_in, nb_classes):
+import seldnet_model      # seld : sound event localization and detection
+# ACCDOA ( Activity - Coupled Cartesian Direction of Arrival)
+def get_accdoa_labels(accdoa_in, nb_classes):  #def eval_epoch line 98, def test_epoch 197  
+    #print('accdoa_in:',accdoa_in)
     x, y, z = accdoa_in[:, :, :nb_classes], accdoa_in[:, :, nb_classes:2*nb_classes], accdoa_in[:, :, 2*nb_classes:]
+    #raise
     sed = np.sqrt(x**2 + y**2 + z**2) > 0.5
       
     return sed, accdoa_in
 
 
-def get_multi_accdoa_labels(accdoa_in, nb_classes):
+def get_multi_accdoa_labels(accdoa_in, nb_classes): #def eval_epoch line 89, def test_epoch 188
     """
     Args:
         accdoa_in:  [batch_size, frames, num_track*num_axis*num_class=3*3*12]
@@ -56,7 +58,7 @@ def get_multi_accdoa_labels(accdoa_in, nb_classes):
 
     return sed0, doa0, dist0, sed1, doa1, dist1, sed2, doa2, dist2
 
-
+#def eval_epoch line 113,114,115 , def test_epoch line 212,213,214
 def determine_similar_location(sed_pred0, sed_pred1, doa_pred0, doa_pred1, class_cnt, thresh_unify, nb_classes):
     if (sed_pred0 == 1) and (sed_pred1 == 1):
         if distance_between_cartesian_coordinates(doa_pred0[class_cnt], doa_pred0[class_cnt+1*nb_classes], doa_pred0[class_cnt+2*nb_classes],
@@ -67,13 +69,13 @@ def determine_similar_location(sed_pred0, sed_pred1, doa_pred0, doa_pred1, class
     else:
         return 0
 
-
-def eval_epoch(data_generator, model, dcase_output_folder, params, device):
-    eval_filelist = data_generator.get_filelist()
+#line 566 eval_epoch(data_gen_eval, model, dcase_output_test_folder, params, device)
+def eval_epoch(data_generator, model, dcase_output_folder, params, device): # def main line 566
+    eval_filelist = data_generator.get_filelist()  # self._filenames_list = list()
     model.eval()
-    file_cnt = 0
+    file_cnt = 0                                   # 
     with torch.no_grad():
-        for values in data_generator.generate():
+        for values in data_generator.generate():   #  
             if len(values) == 2: # audio visual
                 data, vid_feat = values
                 data, vid_feat = torch.tensor(data).to(device).float(), torch.tensor(vid_feat).to(device).float()
@@ -366,7 +368,7 @@ def main(argv):
             print('ERROR: Unknown dataset splits')
             exit()
 
-        for split_cnt, split in enumerate(test_splits):
+        for split_cnt, split in enumerate(test_splits): #split 4
             print('\n\n---------------------------------------------------------------------------------------------------')
             print('------------------------------------      SPLIT {}   -----------------------------------------------'.format(split))
             print('---------------------------------------------------------------------------------------------------')
@@ -374,7 +376,8 @@ def main(argv):
             # Unique name for the run
             loc_feat = params['dataset']
             if params['dataset'] == 'mic':
-                if params['use_salsalite']:
+                if params['use_salsalite']:       #SALSA: Spatial Cue-Augmented Log-Spectogram 다채널 로그 spectogram
+                                                        #
                     loc_feat = '{}_salsa'.format(params['dataset'])
                 else:
                     loc_feat = '{}_gcc'.format(params['dataset'])
@@ -385,7 +388,7 @@ def main(argv):
                 task_id, job_id, params['mode'], split_cnt, loc_output, loc_feat
             )
             model_name = '{}_model.h5'.format(os.path.join(params['model_dir'], unique_name))
-            print("unique_name: {}\n".format(unique_name))
+            print("unique_name: {}\n".format(unique_name)) # unique name = 3_1_dev_split0_multiaccdoa_foa
 
             # Load train and validation data
             print('Loading training dataset:')
@@ -406,7 +409,7 @@ def main(argv):
                 data_in, data_out = data_gen_train.get_data_sizes()
                 model = seldnet_model.SeldModel(data_in, data_out, params).to(device)
 
-            if params['finetune_mode']:
+            if params['finetune_mode']: #params['pretrained_model_weights'] = 3_1_dev_split0_multiaccdoa_foa_model.h5
                 print('Running in finetuning mode. Initializing the model to the weights - {}'.format(params['pretrained_model_weights']))
                 state_dict = torch.load(params['pretrained_model_weights'], map_location='cpu')
                 if params['modality'] == 'audio_visual':
@@ -414,17 +417,17 @@ def main(argv):
                 model.load_state_dict(state_dict, strict=False)
 
             print('---------------- SELD-net -------------------')
-            print('FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out))
+            print('FEATURES:\n\tdata_in: {}\n\tdata_out: {}\n'.format(data_in, data_out))# data_in, data_out =(128, 7, 250, 64), (128, 50, 156)
             print('MODEL:\n\tdropout_rate: {}\n\tCNN: nb_cnn_filt: {}, f_pool_size{}, t_pool_size{}\n, rnn_size: {}\n, nb_attention_blocks: {}\n, fnn_size: {}\n'.format(
                 params['dropout_rate'], params['nb_cnn2d_filt'], params['f_pool_size'], params['t_pool_size'], params['rnn_size'], params['nb_self_attn_layers'],
-                params['fnn_size']))
-            print(model)
+                params['fnn_size'])) #dropout_rate: 0.05 CNN: nb_cnn_filt: 64, f_pool_size[4, 4, 2], t_pool_size[5, 1, 1], rnn_size: 128
+            print(model)  #  nb_attention_blocks: 2, fnn_size: 128, model: Seldmodel(
 
             # Dump results in DCASE output format for calculating final scores
             dcase_output_val_folder = os.path.join(params['dcase_output_dir'], '{}_{}_val'.format(unique_name, strftime("%Y%m%d%H%M%S", gmtime())))
             cls_feature_class.delete_and_create_folder(dcase_output_val_folder)
-            print('Dumping recording-wise val results in: {}'.format(dcase_output_val_folder))
-
+            print('Dumping recording-wise val results in: {}'.format(dcase_output_val_folder)) 
+            #Dumping recording-wise val results in: results_audio/3_1_dev_split0_multiaccdoa_foa_20241008055338_val
             # Initialize evaluation metric class
             score_obj = ComputeSELDResults(params)
 

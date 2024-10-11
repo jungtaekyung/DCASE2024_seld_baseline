@@ -121,8 +121,8 @@ class DataGenerator(object):
                 self._label_len = temp_label.shape[-1]
             self._doa_len = 3 # Cartesian
 
-        if self._per_file:
-            self._batch_size = int(np.ceil(max_frames/float(self._feature_seq_len)))
+        if self._per_file: # default : False
+            self._batch_size = int(np.ceil(max_frames/float(self._feature_seq_len))) # np.ceil 정수를 무조건 올림
             print('\tWARNING: Resetting batch size to {}. To accommodate the inference of longest file of {} frames in a single batch'.format(self._batch_size, max_frames))
             self._nb_total_batches = len(self._filenames_list)
         else:
@@ -141,39 +141,39 @@ class DataGenerator(object):
         Generates batches of samples
         :return: 
         """
-        if self._shuffle:
-            random.shuffle(self._filenames_list)
-
+        if self._shuffle: 
+            random.shuffle(self._filenames_list)  # 리스트 무작위 셔플
+        # 이것은 이상적으로 루프 외부에 있어야 한다. 하지만 test data를 생성하는 동안 우리는 data를 원한다.
         # Ideally this should have been outside the while loop. But while generating the test data we want the data
-        # to be the same exactly for all epoch's hence we keep it here.
+        # to be the same exactly for all epoch's hence we keep it here. 모든 반복에 정확히 동일하므로 여기에 보관합니다.                                  
         self._circ_buf_feat = deque()
         self._circ_buf_label = deque()
 
         if self._modality == 'audio_visual':
             self._circ_buf_vid_feat = deque()
 
-        file_cnt = 0
-        if self._is_eval:
-            for i in range(self._nb_total_batches):
+        file_cnt = 0                     
+        if self._is_eval:  #<- True ,  default : false
+            for i in range(self._nb_total_batches):#원형버퍼에 feat 와 label을 load 합니다.항상 원형버퍼에 하나 이상의 배치 가치가 있는 feat 와 label을 유지한다. 
                 # load feat and label to circular buffer. Always maintain atleast one batch worth feat and label in the
-                # circular buffer. If not keep refilling it.
+                # circular buffer. If not keep refilling it. 그렇지 않다면 계속해서 채워라.
                 while (len(self._circ_buf_feat) < self._feature_batch_seq_len or (hasattr(self, '_circ_buf_vid_feat') and hasattr(self, '_vid_feature_batch_seq_len') and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len)):
-                    temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt]))
+                    temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt])) # self._modality  = 'audio'
 
-                    for row_cnt, row in enumerate(temp_feat):
-                        self._circ_buf_feat.append(row)
+                    for row_cnt, row in enumerate(temp_feat): # row_cnt 에 number , row 에 temp_feat
+                        self._circ_buf_feat.append(row)  # self._circ_buf_vid_feat = deque()
 
-                    if self._modality == 'audio_visual':
+                    if self._modality == 'audio_visual':  #self._modality = params['modality']
                         temp_vid_feat = np.load(os.path.join(self._vid_feat_dir, self._filenames_list[file_cnt]))
                         for vf_row_cnt, vf_row in enumerate(temp_vid_feat):
                             self._circ_buf_vid_feat.append(vf_row)
 
                     # If self._per_file is True, this returns the sequences belonging to a single audio recording
-                    if self._per_file:
-                        extra_frames = self._feature_batch_seq_len - temp_feat.shape[0]
-                        extra_feat = np.ones((extra_frames, temp_feat.shape[1])) * 1e-6
+                    if self._per_file:  #default self._per_file = False 
+                        extra_frames = self._feature_batch_seq_len - temp_feat.shape[0] # line 131,135
+                        extra_feat = np.ones((extra_frames, temp_feat.shape[1])) * 1e-6   # 1e-6 = 0.000001 milli u(mu)
 
-                        for row_cnt, row in enumerate(extra_feat):
+                        for row_cnt, row in enumerate(extra_feat): 
                             self._circ_buf_feat.append(row)
 
                         if self._modality == 'audio_visual':
@@ -181,19 +181,19 @@ class DataGenerator(object):
                             extra_vid_feat = np.ones((vid_feat_extra_frames, temp_vid_feat.shape[1], temp_vid_feat.shape[2])) * 1e-6
 
                             for vf_row_cnt, vf_row in enumerate(extra_vid_feat):
-                                self._circ_buf_vid_feat.append(vf_row)
+                                self._circ_buf_vid_feat.append(vf_row) #self._nb_mel_bins = self._feat_cls.get_nb_mel_bins()
 
-                    file_cnt = file_cnt + 1
-
-                # Read one batch size from the circular buffer
-                feat = np.zeros((self._feature_batch_seq_len, self._nb_mel_bins * self._nb_ch))
-                for j in range(self._feature_batch_seq_len):
-                    feat[j, :] = self._circ_buf_feat.popleft()
+                #feat_shape = (self._batch_size, self._nb_ch, self._feature_seq_len, self._nb_mel_bins)
+                    file_cnt = file_cnt + 1 # 파일명에 따른 숫자 증가 
+                # Read one batch size from the circular buffer    
+                feat = np.zeros((self._feature_batch_seq_len, self._nb_mel_bins * self._nb_ch))#
+                for j in range(self._feature_batch_seq_len):#self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
+                    feat[j, :] = self._circ_buf_feat.popleft() # line 189
                 feat = np.reshape(feat, (self._feature_batch_seq_len, self._nb_ch, self._nb_mel_bins))
 
                 # Split to sequences
-                feat = self._split_in_seqs(feat, self._feature_seq_len)
-                feat = np.transpose(feat, (0, 2, 1, 3))
+                feat = self._split_in_seqs(feat, self._feature_seq_len) # line 303 def__split_in_seqs
+                feat = np.transpose(feat, (0, 2, 1, 3)) #row , column change
 
                 if self._modality == 'audio_visual':
                     vid_feat = np.zeros((self._vid_feature_batch_seq_len, 7, 7))
@@ -205,22 +205,22 @@ class DataGenerator(object):
                 else:
                     yield feat
 
-        else:
+        else: #self._is_eval=False <- default
             for i in range(self._nb_total_batches):
                 # load feat and label to circular buffer. Always maintain atleast one batch worth feat and label in the
                 # circular buffer. If not keep refilling it.
                 while (len(self._circ_buf_feat) < self._feature_batch_seq_len or (hasattr(self, '_circ_buf_vid_feat') and hasattr(self, '_vid_feature_batch_seq_len') and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len)):
                     temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt]))
-                    temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[file_cnt]))
+                    temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[file_cnt]))#self._is_eval True,false 따라 다름
                     if self._modality == 'audio_visual':
                         temp_vid_feat = np.load(os.path.join(self._vid_feat_dir, self._filenames_list[file_cnt]))
 
-                    if not self._per_file:
-                        # Inorder to support variable length features, and labels of different resolution.
+                    if not self._per_file: # self._per_file==False
+                        # In order to support variable length features, and labels of different resolution.
                         # We remove all frames in features and labels matrix that are outside
                         # the multiple of self._label_seq_len and self._feature_seq_len. Further we do this only in training.
                         temp_label = temp_label[:temp_label.shape[0] - (temp_label.shape[0] % self._label_seq_len)]
-                        temp_mul = temp_label.shape[0] // self._label_seq_len
+                        temp_mul = temp_label.shape[0] // self._label_seq_len #multiple
                         temp_feat = temp_feat[:temp_mul * self._feature_seq_len, :]
                         if self._modality == 'audio_visual':
                             temp_vid_feat = temp_vid_feat[:temp_mul * self._vid_feature_seq_len, :, :]
@@ -300,8 +300,8 @@ class DataGenerator(object):
                 else:
                     yield feat, label
 
-    def _split_in_seqs(self, data, _seq_len): # data - 250*8, 7, 64 - 250
-        if len(data.shape) == 1:
+    def _split_in_seqs(self, data, _seq_len): # data - 250*8, 7, 64 - 250   # data의 차원에 따라 output 달라짐
+        if len(data.shape) == 1:  
             if data.shape[0] % _seq_len:
                 data = data[:-(data.shape[0] % _seq_len), :]
             data = data.reshape((data.shape[0] // _seq_len, _seq_len, 1))
